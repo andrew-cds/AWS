@@ -1,0 +1,28 @@
+# Exclude JWKS files and sensitive key material
+rpsim/jwks.json
+**/jwks.json
+
+# Exclude Terraform state files and backend config
+*.tfstate
+*.tfstate.*
+*.tfvars
+*.tfvars.json
+crash.log
+crash.*.log
+
+# Exclude Terraform lock file (optional: include in version control for reproducibility)
+# .terraform.lock.hcl
+
+# Exclude Terraform plugin cache
+.terraform/
+.terraform.lock.hcl
+
+# Exclude editor and OS files
+.DS_Store
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.env
+.env.local
