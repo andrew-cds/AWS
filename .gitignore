@@ -1,6 +1,3 @@
-# Exclude JWKS files and sensitive key material
-rpsim/jwks.json
-**/jwks.json
 
 # Exclude Terraform state files and backend config
 *.tfstate
