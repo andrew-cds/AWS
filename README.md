@@ -300,9 +300,10 @@ export AWS_ACCESS_KEY_ID=$(echo "$SECRET" | jq -r '.AWS_ACCESS_KEY_ID')
 export AWS_SECRET_ACCESS_KEY=$(echo "$SECRET" | jq -r '.AWS_SECRET_ACCESS_KEY')
 export AWS_DEFAULT_REGION="ca-central-1"
 
-# Run Terraform
+# Run Terraform (recommended: save plan to file for safety)
 terraform init
-terraform apply
+terraform plan -out=tfplan
+terraform apply tfplan
 ```
 
 **Windows (PowerShell)**
@@ -320,9 +321,10 @@ $env:AWS_ACCESS_KEY_ID     = $Secret.AWS_ACCESS_KEY_ID
 $env:AWS_SECRET_ACCESS_KEY = $Secret.AWS_SECRET_ACCESS_KEY
 $env:AWS_DEFAULT_REGION    = "ca-central-1"
 
-# Run Terraform
+# Run Terraform (recommended: save plan to file for safety)
 terraform init
-terraform apply
+terraform plan -out=tfplan
+terraform apply tfplan
 ```
 
 > **Tip:** These environment variables are scoped to the current terminal session only. Close the terminal when done and the credentials disappear from memory.
@@ -390,11 +392,21 @@ No credential configuration is needed. CloudShell is already authenticated as yo
 
 ```bash
 terraform init
+terraform plan -out=tfplan
+terraform apply tfplan
+```
+
+For quick exploratory runs, you can omit the `-out` flag and run `terraform plan` then `terraform apply` separately (you'll be prompted to type `yes`):
+
+```bash
+terraform init
 terraform plan
 terraform apply
 ```
 
-Type `yes` when prompted to confirm.
+Type `yes` when prompted to confirm (only needed without `-out`).
+
+> **Best practice:** Use `terraform plan -out=tfplan` so the exact reviewed plan is applied without re-evaluation. This is especially important if your session times out — you can safely re-open CloudShell and run `terraform apply tfplan` again with the same plan.
 
 > **Session timeout note:** CloudShell disconnects after **20 minutes of inactivity**. If your session drops during a long `apply` (CloudFront deployments take 5–15 minutes), re-open CloudShell — your home directory and installed Terraform binary will still be there. Run `source ~/.bashrc` to restore your PATH, then check `terraform output` to see what was created.
 
@@ -453,21 +465,33 @@ terraform init
 
 ### 3. Preview the execution plan
 
-Shows what resources will be created without making any changes.
+Shows what resources will be created without making any changes. Optionally save the plan to a file so `apply` uses the exact same plan:
 
 ```bash
+# Quick preview (re-evaluated during apply)
 terraform plan
+
+# OR — recommended for production: save the plan to a file
+terraform plan -out=tfplan
 ```
 
 ### 4. Apply the configuration
 
 Creates all AWS resources (S3 bucket, CloudFront distribution, bucket policy, etc.).
 
+**If you saved a plan file in step 3:**
+```bash
+terraform apply tfplan
+```
+
+**If you ran plan without `-out`:**
 ```bash
 terraform apply
 ```
 
-Type `yes` when prompted to confirm.
+Type `yes` when prompted to confirm (not needed if using a saved plan file).
+
+> **Best practice:** Use `terraform plan -out=tfplan` in production and CI/CD environments. This ensures the exact reviewed plan is applied without re-evaluation or accidental changes.
 
 > **Note:** CloudFront distributions can take **5–15 minutes** to fully deploy after `apply` completes.
 
