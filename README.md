@@ -1,6 +1,6 @@
-# JWKS Hosting — Terraform
+# JWKS and SAML Metadata Hosting — Terraform
 
-This Terraform configuration provisions AWS infrastructure to host JWKS (JSON Web Key Sets) files for one or more applications. It creates a **private S3 bucket** in `ca-central-1` (Montreal) and exposes the files via a **CloudFront distribution** over HTTPS, with caching disabled so consumers always receive the latest keys.
+This Terraform configuration provisions AWS infrastructure to host JWKS (JSON Web Key Sets) and SAML metadata files for one or more applications. It creates a **private S3 bucket** in `ca-central-1` (Montreal) and exposes the files via an AWS **CloudFront distribution** (not Cloudflare) over HTTPS, with caching disabled so consumers always receive the latest files.
 
 ## Architecture
 
@@ -11,6 +11,8 @@ Local jwks.json files → S3 Bucket (ca-central-1, private)
                               ↓ (HTTPS only)
               https://<cf-domain>/<app>/.well-known/jwks
 ```
+
+SAML metadata uses the same bucket and distribution at `https://<cf-domain>/<app>/saml/metadata`, served with content type `application/samlmetadata+xml`.
 
 ## Prerequisites
 
@@ -384,7 +386,7 @@ cd your-repo/terraform/jwks_hosting
 
 1. Click **Actions** in the top-right corner of the CloudShell panel.
 2. Select **Upload file**.
-3. Upload `jwks_hosting.tf` and each `jwks.json` file. Re-create the folder structure (e.g. `mkdir -p rpsim`) before uploading files into subdirectories.
+3. Re-create the repository layout shown below, then upload the Terraform configuration, JWKS files, and SAML metadata files into their respective directories. Run Terraform from `terraform/jwks_hosting`; file sources are resolved relative to that module, not the shell's working directory.
 
 #### Step 4 — Run Terraform
 
@@ -415,16 +417,22 @@ Type `yes` when prompted to confirm (only needed without `-out`).
 ## Project Structure
 
 ```
-jwks_hosting/
-├── jwks_hosting.tf       # Main Terraform configuration
-├── README.md             # This file
-└── rpsim/
-    └── jwks.json         # JWKS file for the "rpsim" application
+.
+├── README.md
+├── jwks/
+│   └── rpsim/
+│       └── jwks.json
+├── saml_metadata/
+│   └── rpsim/
+│       └── metadata      # metadata.xml is also supported
+└── terraform/
+  └── jwks_hosting/
+    └── jwks_hosting.tf
 ```
 
 ### Adding More Applications
 
-To host JWKS for additional applications, add entries to the `apps_and_jwks` variable in `jwks_hosting.tf` and place the corresponding JSON file in the directory:
+To host JWKS for additional applications, add entries to the `apps_and_jwks` variable in `terraform/jwks_hosting/jwks_hosting.tf`. Each path is relative to the repository's `jwks/` directory:
 
 ```hcl
 variable "apps_and_jwks" {
@@ -436,6 +444,10 @@ variable "apps_and_jwks" {
   }
 }
 ```
+
+SAML applications are discovered automatically from immediate subfolders of `saml_metadata/`. Put one file named either `metadata.xml` or `metadata` in each application folder, not both. For example, `saml_metadata/rpsim/metadata.xml` is published at `https://<cloudfront-domain>/rpsim/saml/metadata`. Folders without either filename are ignored.
+
+Run a new plan and apply after adding or changing files. Content hashes ensure edits to existing JWKS and SAML metadata files trigger uploads. Regenerate any previously saved `tfplan` before applying this updated configuration.
 
 ---
 
@@ -505,12 +517,16 @@ Outputs:
 all_jwks_urls = {
   "rpsim" = "https://<cloudfront-domain>/rpsim/.well-known/jwks"
 }
+all_saml_metadata_urls = {
+  "rpsim" = "https://<cloudfront-domain>/rpsim/saml/metadata"
+}
 ```
 
 You can also retrieve this output at any time with:
 
 ```bash
 terraform output all_jwks_urls
+terraform output all_saml_metadata_urls
 ```
 
 ---

@@ -10,16 +10,26 @@ terraform {
 
 # 1. Configured for Canada Central (Montreal)
 provider "aws" {
-  region = "ca-central-1" 
+  region = "ca-central-1"
 }
 
 # 2. Define your applications and their local file mappings
 variable "apps_and_jwks" {
   type = map(string)
   default = {
-    "rpsim"   = "rpsim/jwks.json"   # maps to: /app-one/.well-known/jwks
-    # "app-two"   = "jwks-two.json"   # maps to: /app-two/.well-known/jwks
-    # "marketing" = "jwks-mktg.json"  # maps to: /marketing/.well-known/jwks
+    "rpsim" = "rpsim/jwks.json"
+  }
+}
+
+locals {
+  jwks_directory          = "${path.module}/../../jwks"
+  saml_metadata_directory = "${path.module}/../../saml_metadata"
+  apps_and_saml_metadata = {
+    for metadata_file in setunion(
+      fileset(local.saml_metadata_directory, "*/metadata"),
+      fileset(local.saml_metadata_directory, "*/metadata.xml")
+    ) :
+    dirname(metadata_file) => metadata_file
   }
 }
 
@@ -45,8 +55,19 @@ resource "aws_s3_object" "jwks_files" {
 
   bucket       = aws_s3_bucket.jwks_bucket.id
   key          = "${each.key}/.well-known/jwks"
-  source       = each.value
+  source       = "${local.jwks_directory}/${each.value}"
+  source_hash  = filemd5("${local.jwks_directory}/${each.value}")
   content_type = "application/json"
+}
+
+resource "aws_s3_object" "saml_metadata_files" {
+  for_each = local.apps_and_saml_metadata
+
+  bucket       = aws_s3_bucket.jwks_bucket.id
+  key          = "${each.key}/saml/metadata"
+  source       = "${local.saml_metadata_directory}/${each.value}"
+  source_hash  = filemd5("${local.saml_metadata_directory}/${each.value}")
+  content_type = "application/samlmetadata+xml"
 }
 
 # 6. CloudFront Origin Access Control (OAC)
@@ -102,8 +123,8 @@ resource "aws_s3_bucket_policy" "allow_cloudfront_oac" {
     Version = "2012-10-17"
     Statement = [
       {
-        Sid       = "AllowCloudFrontServicePrincipalReadOnly"
-        Effect    = "Allow"
+        Sid    = "AllowCloudFrontServicePrincipalReadOnly"
+        Effect = "Allow"
         Principal = {
           Service = "cloudfront.amazonaws.com"
         }
@@ -122,8 +143,16 @@ resource "aws_s3_bucket_policy" "allow_cloudfront_oac" {
 # Outputs to grab your live URLs instantly
 output "all_jwks_urls" {
   value = {
-    for app, file in var.apps_and_jwks : 
+    for app, file in var.apps_and_jwks :
     app => "https://${aws_cloudfront_distribution.jwks_distribution.domain_name}/${app}/.well-known/jwks"
   }
   description = "The exact production URLs to fetch the JWKS file for each application"
+}
+
+output "all_saml_metadata_urls" {
+  value = {
+    for app, metadata_file in local.apps_and_saml_metadata :
+    app => "https://${aws_cloudfront_distribution.jwks_distribution.domain_name}/${app}/saml/metadata"
+  }
+  description = "The exact production URLs to fetch the SAML metadata for each application"
 }
