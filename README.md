@@ -419,6 +419,7 @@ Type `yes` when prompted to confirm (only needed without `-out`).
 ```
 .
 ├── README.md
+├── deploy.sh
 ├── jwks/
 │   └── rpsim/
 │       └── jwks.json
@@ -452,6 +453,45 @@ Run a new plan and apply after adding or changing files. Content hashes ensure e
 ---
 
 ## Running the Terraform Script (Local)
+
+### Automated deployment (Mac / Linux / CloudShell)
+
+From the repository root, run:
+
+```bash
+./deploy.sh
+```
+
+The script checks your AWS identity, initialises and validates Terraform, shows
+a fresh plan, and asks you to type `yes` before applying that exact plan. After
+deployment it prints the JWKS and SAML metadata URLs. It locates the module
+relative to the script, so you can also invoke it by absolute path from another
+directory.
+
+Configure credentials using one of the options above first. The script uses
+your existing AWS credential chain; it does not retrieve Secrets Manager
+credentials or perform SSO login for you. For Option B, retrieve and export the
+credentials from Step 4 before running the script. CloudShell credentials work
+without additional configuration. To select a named deployment profile:
+
+```bash
+AWS_PROFILE=deployer ./deploy.sh
+```
+
+Preview without applying, or explicitly skip the approval prompt for automation:
+
+```bash
+./deploy.sh --plan-only
+./deploy.sh --yes
+```
+
+These options cannot be combined. Each run uses a private temporary plan that is
+removed on exit, leaving any existing `terraform/jwks_hosting/tfplan` untouched.
+A preview-only run does not retain a plan for later application. Failed commands
+stop deployment and return a nonzero exit status. Terraform still persists its
+normal provider installation and state in the module directory.
+
+### Manual deployment
 
 If you are using **Option C (CloudShell)**, skip this section — the run steps are included in Option C above.
 
